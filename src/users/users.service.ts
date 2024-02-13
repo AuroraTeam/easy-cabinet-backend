@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectS3, S3 } from 'nestjs-s3';
 import sharp from 'sharp';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 
 import { JwtPayload } from '../auth/jwt.strategy';
 import { ProfileDto } from './dto/profile.dto';
@@ -16,13 +16,18 @@ import { User } from './user.entity';
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
-    @InjectS3() private readonly s3: S3,
+    private readonly usersRepository: Repository<User>,
+    @InjectS3()
+    private readonly s3: S3,
     private readonly configService: ConfigService,
   ) {}
 
-  public findOneByLogin(login: string) {
-    return this.usersRepository.findOneBy({ login });
+  public findUser(where: FindOptionsWhere<User> | FindOptionsWhere<User>[]) {
+    return this.usersRepository.findOneBy(where);
+  }
+
+  public findUsers(where: FindOptionsWhere<User> | FindOptionsWhere<User>[]) {
+    return this.usersRepository.findBy(where);
   }
 
   public async checkIfUserExists({ login }: Pick<User, 'login'>) {
@@ -37,19 +42,15 @@ export class UsersService {
     return this.usersRepository.update(criteria, user);
   }
 
-  public async getProfile(user: JwtPayload) {
-    const { isAlex, skinUrl, capeUrl } = await this.findOneByLogin(user.login);
+  public async getProfile({ uuid }: JwtPayload) {
+    return this.getSkinData(await this.findUser({ uuid }));
+  }
 
-    const formatS3Url = (hash: string) => {
-      return this.configService
-        .get<string>('S3_PUBLIC_URL')
-        .replace('[hash]', hash);
-    };
-
+  public getSkinData({ isAlex, skinHash, capeHash }: User) {
     return {
       isAlex,
-      skinUrl: formatS3Url(skinUrl),
-      capeUrl: formatS3Url(capeUrl),
+      skinUrl: this.formatS3Url(skinHash),
+      capeUrl: this.formatS3Url(capeHash),
     };
   }
 
@@ -66,12 +67,20 @@ export class UsersService {
       isAlex: profile.isAlex,
     };
 
-    if (skinHash) userData.skinUrl = skinHash;
-    if (capeHash) userData.capeUrl = capeHash;
+    if (skinHash) userData.skinHash = skinHash;
+    if (capeHash) userData.capeHash = capeHash;
 
     await this.updateUser({ login: user.login }, userData);
 
     return true;
+  }
+
+  private formatS3Url(hash: string) {
+    if (!hash) return;
+
+    return this.configService
+      .get<string>('S3_PUBLIC_URL')
+      .replace('[hash]', hash);
   }
 
   private async uploadImage(

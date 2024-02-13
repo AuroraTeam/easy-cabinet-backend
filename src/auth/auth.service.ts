@@ -21,8 +21,8 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  public async login(login: string, password: string) {
-    const user = await this.usersService.findOneByLogin(login);
+  public async verifyAuth(login: string, password: string) {
+    const user = await this.usersService.findUser({ login });
 
     if (!user) {
       throw new BadRequestException('User not found');
@@ -32,6 +32,11 @@ export class AuthService {
       throw new BadRequestException('Invalid password');
     }
 
+    return user;
+  }
+
+  public async login(login: string, password: string) {
+    const user = await this.verifyAuth(login, password);
     return this.generateTokensPair({ uuid: user.uuid, login });
   }
 

@@ -21,10 +21,10 @@ export class User {
   serverId: string;
 
   @Column({ nullable: true })
-  skinUrl: string;
+  skinHash: string;
 
   @Column({ nullable: true })
-  capeUrl: string;
+  capeHash: string;
 
   @Column({ nullable: true })
   isAlex: boolean;
